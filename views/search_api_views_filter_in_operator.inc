@@ -29,12 +29,11 @@ class search_api_views_filter_in_operator extends views_handler_filter {
    $entity_id = array();
    $option = explode(':', $this->options['value']);
    $view = views_get_view($option[0]);
-   $view->set_display($option[$option[1]]);
    if (substr($view->base_table, 0, 17) == 'search_api_index_') {
    	 $machine_name = substr($view->base_table, 17);
    	 $query = search_api_index_load($machine_name)->query(array('parse mode' => 'terms'));
    	 if ($query->getOption('search id') == get_class($query)) {
-   	 	$query->setOption('search id', 'search_api_views:' . $view->name . ':' . $view->current_display);
+   	 	$query->setOption('search id', 'search_api_views:' . $view->name . ':' . $option[1]);
    	 }
      $results = $query->execute();
      foreach ($results['results'] as $id => $result) {
