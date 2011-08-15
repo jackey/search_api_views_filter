@@ -1,0 +1,10 @@
+<?php
+
+/**
+ * Implements hook_views_api().
+ */
+function search_api_views_filter_views_api() {
+  return array(
+    'api' => '3.0-alpha1',
+  );
+}

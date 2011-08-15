@@ -1,0 +1,8 @@
+
+name = Search API Views Filter
+description = "Provide search api views filter to search results."
+dependencies[] = search_api_views
+core = 7.x
+package = Search
+
+files[] = views/search_api_views_filter_in_operator.inc
