@@ -16,12 +16,16 @@
    */
   function search_api_views_filter_views_data_alter(&$data) {
     if ($data['node']['nid']) {
-	    $data['node']['nids'] = array(
-	      'title' => t('Search api results'),
-	      'help' => t('filter by search api results'),
-	      'real field' => 'nid',
-	      'filter' => array('handler' => 'search_api_views_filter_in_operator'),
-	    );
+      foreach (search_api_index_load_multiple(FALSE) as $index) {
+      	if ($index->enabled) {
+          $data['node'][$index->machine_name] = array(
+            'title' => t('Seach api results From ' . $index->name),
+            'help' => t('Filter by search api results'),
+            'real field' => 'nid',
+            'filter' =>  array('handler' => 'search_api_views_filter_in_operator', 'search_api_index' => $index->machine_name),
+          );
+      	}
+      }
     }
   }
 ?>

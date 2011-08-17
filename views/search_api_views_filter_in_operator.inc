@@ -1,40 +1,144 @@
 <?php 
 
 class search_api_views_filter_in_operator extends views_handler_filter {
- function options_form (&$form, &$form_state) {
-   parent::options_form();
-    $options = array();
-    foreach (search_api_index_load_multiple(FALSE) as $index) {
-      $options[$index->machine_name] = 'Search API Index :' . $index->name;
-    }
-    
-    $form['value'] = array(
-     '#type' => 'select',
-     '#options' => $options,
-     '#multiple' => FALSE,
-    );
+ 
+ /**
+  * Extend.
+  * @see views_handler_filter::option_definition()
+  */
+ function option_definition() {
+ 	$options = parent::option_definition();
+ 	$options['mode'] = array('default' => 'keys');
+ 	$options['fields'] = array('default' => array());
+
+ 	return $options;
  }
  
- function can_expose() {
-	return FALSE;
+ /**
+  * Value form.
+  * @see views_handler_filter::value_form()
+  */
+ function value_form(&$form, &$form_state) {
+ 	$form['value'] = array(
+ 	  '#type' => 'textfield',
+ 	  '#title' => t('Value'),
+ 	  '#size' => 30,
+ 	  '#default_value' => $this->value,
+ 	);
+ 	if (!empty($form_state['exposed'])) {
+ 		$identifier = $this->options['expose']['identifier'];
+ 	  if (!empty($form_state['exposed']) && !isset($form_state['input'][$identifier])) {
+      $form_state['input'][$identifier] = $this->value;
+    }
+ 	}
  }
+ 
+ /**
+  * Extend.
+  * @see views_handler_filter::query()
+  */
  
  function query() {
+ 	 while (is_array($this->value)) {
+ 	 	 $this->value = $this->value ? array_shift($this->value) : NULL;
+ 	 }
+ 	 $fields = $this->options['fields'] ? $this->options['fields'] : array_keys($this->getFulltextFields());
+ 	 
    $entity_id = array();
-   $query = search_api_index_load($this->options['value'])->query(array('parse mode' => 'terms'));
-   	 if ($query->getOption('search id') == get_class($query)) {
-   	 	$query->setOption('search id', 'search_api_views_filter:' . $this->view->name . ':' . $this->view->current_display);
-   	 }
-     $results = $query->execute();
-     foreach ($results['results'] as $id => $result) {
-       if (!empty($result['entity'])) {
-       	 $entity_id[] = $result['entity']->{$result['entity']->idKey};
-       }
-       $entity_id[] = $id;
+   $query = search_api_index_load($this->definition['search_api_index'])->query(array('parse mode' => 'terms'));
+   
+   if ($this->value) { 
+   	if ($this->options['mode'] == 'keys') {
+   		$filter = $query->createFilter('OR');
+   		foreach ($fields as $field) {
+   			$filter->condition($field, $this->value);
+   		}
+   		$query->filter($filter);
+   	}
+   	else {
+   		$query->fields($fields);
+   		$old = $query->getOriginalKeys();
+   		$this->query->keys($this->value);
+   		$keys = &$this->query->getKeys();
+   		if (is_array($keys)) {
+   			$keys['#negation'] = TRUE;
+   		}
+   		if ($old) {
+   			$keys = &$query->getKeys();
+   			if (is_array($keys)) {
+   				$keys[] = $old;
+   			}
+   			else {
+   				$keys = "($old) ($keys)";
+   			}
+   		}
+   	} 
+   }
+
+   if ($query->getOption('search id') == get_class($query)) {
+   	 $query->setOption('search id', 'search_api_views_filter:' . $this->view->name . ':' . $this->view->current_display);
+   }
+   $results = $query->execute();
+   foreach ($results['results'] as $id => $result) {
+     if (!empty($result['entity'])) {
+       $entity_id[] = $result['entity']->{$result['entity']->idKey};
      }
+     $entity_id[] = $id;
+   }
    if (!empty($entity_id)) {
-   	$this->ensure_my_table();
-    $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field", $entity_id, 'in');
+   	 $this->ensure_my_table();
+     $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field", $entity_id, 'in');
    }
  }
+ 
+ /**
+  * Helper function to fetch fields.
+  * Steal from search_api_views.
+  */
+  protected function getFulltextFields() {
+    $fields = array();
+    $index = search_api_index_load($this->definition['search_api_index']);
+    if (!empty($index->options['fields'])) {
+      $f = $index->options['fields'];
+      foreach ($index->getFulltextFields() as $name) {
+        $fields[$name] = $f[$name]['name'];
+      }
+    }
+    return $fields;
+  }
+  
+  /**
+   * Add addition expose form.
+   * @see views_handler_filter::expose_form()
+   */
+  function expose_form(&$form, &$form_state) {
+  	parent::expose_form($form, $form_state);
+  	$form['mode'] = array(
+  	      '#title' => t('Use as'),
+  	      '#type' => 'radios',
+  	      '#options' => array(
+  	        'keys' => t('Search keys – multiple words will be split and the filter will influence relevance.'),
+  	        'filter' => t("Search filter – use as a single phrase that restricts the result set but doesn't influence relevance."),
+  	),
+  	       '#default_value' => $this->options['mode'],
+  	);
+  	$fields = $this->getFulltextFields();
+  	if (!empty($fields)) {
+  	  $form['fields'] = array(
+  	    '#type' => 'select',
+  	    '#title' => t('Searched fields'),
+  	    '#description' => t('Select the fields that will be searched. If no fields are selected, all available fulltext fields will be searched.'),
+  	    '#options' => $fields,
+  	    '#size' => min(4, count($fields)),
+  	    '#multiple' => TRUE,
+  	    '#default_value' => $this->options['fields'],
+  	  );
+  	}
+  	else {
+  	  $form['fields'] = array(
+  	    '#type' => 'value',
+  	    '#value' => array(),
+      );
+  	}
+  }
 }
