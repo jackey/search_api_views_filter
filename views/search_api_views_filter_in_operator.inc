@@ -44,7 +44,7 @@ class search_api_views_filter_in_operator extends views_handler_filter {
  	 }
  	 $fields = $this->options['fields'] ? $this->options['fields'] : array_keys($this->getFulltextFields());
  	 
-   $entity_id = array();
+   $entity_id = array('-1');
    $query = search_api_index_load($this->definition['search_api_index'])->query(array('parse mode' => 'terms'));
    
    if ($this->value) { 
@@ -72,23 +72,42 @@ class search_api_views_filter_in_operator extends views_handler_filter {
    				$keys = "($old) ($keys)";
    			}
    		}
-   	} 
+   	}
    }
+
+   $filters = $this->search_api_views_filter_merge_search_api_filters($this->view, search_api_index_load($this->definition['search_api_index']));
+   
+   $search_api_filter = $query->createFilter("OR");
+   foreach ($filters as $filter) {
+     if (is_subclass_of($filter, 'views_handler_filter_date')) {
+       $search_api_filter->condition($filter->real_field, views_handler_filter_date_helper::getValue($filter), $filter->operator);
+     }
+     elseif (get_class($filter) == 'views_handler_filter_node_type') {
+       foreach ($filter->value as $v) {
+         $search_api_filter->condition($filter->real_field, $v, '=');
+       }
+     }
+     else {
+       $search_api_filter->condition($filter->real_field, $filter->value, $filter->operator);
+     }
+   }
+   $query->filter($search_api_filter);
 
    if ($query->getOption('search id') == get_class($query)) {
    	 $query->setOption('search id', 'search_api_views_filter:' . $this->view->name . ':' . $this->view->current_display);
    }
    $results = $query->execute();
+   //dpm($results);
    foreach ($results['results'] as $id => $result) {
      if (!empty($result['entity'])) {
        $entity_id[] = $result['entity']->{$result['entity']->idKey};
      }
      $entity_id[] = $id;
    }
-   if (!empty($entity_id)) {
+   //if (!empty($entity_id)) {
    	 $this->ensure_my_table();
      $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field", $entity_id, 'in');
-   }
+   //}
  }
  
  /**
@@ -140,5 +159,19 @@ class search_api_views_filter_in_operator extends views_handler_filter {
   	    '#value' => array(),
       );
   	}
+  }
+  
+  /**
+   * Merge views filter with search_api index fields.
+   */
+  function search_api_views_filter_merge_search_api_filters($view, $index) {
+    $filters = array();
+    unset($view->filter[$this->options['id']]);
+    foreach ($view->filter as $filter) {
+      if (isset($index->options['fields'][$filter->real_field]) && $index->options['fields'][$filter->real_field]['indexed']) {
+        $filters[$filter->real_field] = $filter;
+      }
+    }
+    return $filters;
   }
 }
