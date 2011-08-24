@@ -47,37 +47,56 @@ class search_api_views_filter_in_operator extends views_handler_filter {
    $entity_id = array('-1');
    $query = search_api_index_load($this->definition['search_api_index'])->query(array('parse mode' => 'terms'));
    
-   if ($this->value) { 
-   	if ($this->options['mode'] == 'keys') {
-   		$filter = $query->createFilter('OR');
-   		foreach ($fields as $field) {
-   			$filter->condition($field, $this->value);
-   		}
-   		$query->filter($filter);
-   	}
-   	else {
-   		$query->fields($fields);
-   		$old = $query->getOriginalKeys();
-   		$this->query->keys($this->value);
-   		$keys = &$this->query->getKeys();
-   		if (is_array($keys)) {
-   			$keys['#negation'] = TRUE;
-   		}
-   		if ($old) {
-   			$keys = &$query->getKeys();
-   			if (is_array($keys)) {
-   				$keys[] = $old;
-   			}
-   			else {
-   				$keys = "($old) ($keys)";
-   			}
-   		}
-   	}
+   // Deep copy from search_api
+   if ($this->value) {
+     while (is_array($this->value)) {
+       $this->value = $this->value ? array_shift($this->value) : NULL;
+     }
+     
+    $filter = $this->options['mode'] == 'filter';
+    if (!$filter) {
+      $old = $query->getFields();
+      $filter = $old && (array_diff($old, $fields) || array_diff($fields, $old));
+    }
+
+    if ($filter) {
+      $filter = $query->createFilter('OR');
+      foreach ($fields as $field) {
+        $filter->condition($field, $this->value, $this->operator);
+      }
+      $query->filter($filter);
+      return;
+    }
+
+    $query->fields($fields);
+    $old = $query->getOriginalKeys();
+    $query->keys($this->value);
+    if ($this->operator != '=') {
+      $keys = &$query->getKeys();
+      if (is_array($keys)) {
+        $keys['#negation'] = TRUE;
+      }
+      else {
+        // We can't know how negation is expressed in the server's syntax.
+      }
+    }
+    if ($old) {
+      $keys = &$query->getKeys();
+      if (is_array($keys)) {
+        $keys[] = $old;
+      }
+      elseif (is_array($old)) {
+        // We don't support such nonsense.
+      }
+      else {
+        $keys = "($old) ($keys)";
+      }
+    }
    }
 
    $filters = $this->search_api_views_filter_merge_search_api_filters($this->view, search_api_index_load($this->definition['search_api_index']));
-   
    $search_api_filter = $query->createFilter("OR");
+   $filter_value_handlers = module_invoke_all('views_filter_value');
    foreach ($filters as $filter) {
      if (is_subclass_of($filter, 'views_handler_filter_date')) {
        $search_api_filter->condition($filter->real_field, views_handler_filter_date_helper::getValue($filter), $filter->operator);
@@ -97,17 +116,15 @@ class search_api_views_filter_in_operator extends views_handler_filter {
    	 $query->setOption('search id', 'search_api_views_filter:' . $this->view->name . ':' . $this->view->current_display);
    }
    $results = $query->execute();
-   //dpm($results);
+
    foreach ($results['results'] as $id => $result) {
      if (!empty($result['entity'])) {
        $entity_id[] = $result['entity']->{$result['entity']->idKey};
      }
      $entity_id[] = $id;
    }
-   //if (!empty($entity_id)) {
-   	 $this->ensure_my_table();
-     $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field", $entity_id, 'in');
-   //}
+   $this->ensure_my_table();
+   $this->query->add_where($this->options['group'], "$this->table_alias.$this->real_field", $entity_id, 'in');
  }
  
  /**
