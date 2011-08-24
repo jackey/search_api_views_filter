@@ -8,3 +8,34 @@ function search_api_views_filter_views_api() {
     'api' => '3.0-alpha1',
   );
 }
+
+/**
+ * Implementation of hook_views_filter_value().
+ */
+function search_api_views_filter_views_filter_value() {
+  return array(
+    'views_handler_filter_date' => array(
+      'parents' => array(),
+      'handler' => 'views_handler_filter_date_value',
+    ),
+    'views_handler_filter_node_type' => array(
+      'parents' => array(),
+      'handler' => 'views_handler_filter_node_type_value',
+    ),
+  );
+}
+
+
+/**
+ * Handle date filter value.
+ */
+function views_handler_filter_date_value($views_filter, &$search_api_filter) {
+  return '';
+}
+
+/**
+ * Handle node type filter value.
+ */
+function views_handler_filter_node_type_value($views_filter, &$search_api_filter) {
+  return '';
+}
