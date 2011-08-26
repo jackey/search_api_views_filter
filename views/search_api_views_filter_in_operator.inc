@@ -47,6 +47,9 @@ class search_api_views_filter_in_operator extends views_handler_filter {
    $entity_id = array('-1');
    $query = search_api_index_load($this->definition['search_api_index'])->query(array('parse mode' => 'terms'));
    
+   // This is important. 
+   $query->getFilter()->setConjunction('OR');
+   
    // Deep copy from search_api
    if ($this->value) {
      while (is_array($this->value)) {
