@@ -53,6 +53,7 @@ function search_api_views_filter_form_views_exposed_form_alter(&$form, &$form_st
     }
   }
   $query = array_diff_assoc(drupal_get_query_parameters($_GET, array('q', 'page')), $keys);
+  if (!isset($query['filter'])) return;
   foreach ($query['filter'] as $k => $q) {
     foreach ($q as $k1 => $q1) {
       $form["filter[$k][$k1]"] = array(
