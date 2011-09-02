@@ -39,3 +39,26 @@ function views_handler_filter_date_value($views_filter, &$search_api_filter) {
 function views_handler_filter_node_type_value($views_filter, &$search_api_filter) {
   return '';
 }
+
+/**
+* Implements hook_form_alter() for 'views_exposed_form'().
+*/
+function search_api_views_filter_form_views_exposed_form_alter(&$form, &$form_state) {
+  // Exclude current form search KEY.
+  $view = $form_state['view'];
+  $keys = array();
+  foreach ($view->filter as $filter) {
+    if ($filter->options['exposed']) {
+      $keys[$filter->options['expose']['identifier']] = $filter->options['expose']['identifier'];
+    }
+  }
+  $query = array_diff_assoc(drupal_get_query_parameters($_GET, array('q', 'page')), $keys);
+  foreach ($query['filter'] as $k => $q) {
+    foreach ($q as $k1 => $q1) {
+      $form["filter[$k][$k1]"] = array(
+        '#type' => 'hidden',
+        '#value' => $q1,
+      );
+    }
+  }
+}
